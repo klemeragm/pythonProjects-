@@ -1,0 +1,71 @@
+library(tidyverse)
+library(lubridate)
+library(bnlearn)
+
+###########coleta dos dados###########
+setwd("C:/Users/Klemer/Desktop/testeTopicos") #path para o arquivo 
+#Carregando Banco de Dados
+dados_atualizado_situacao <- read.csv('dados_formatados.csv', sep=';')
+
+##  Fim da leitura dos dados  ###
+
+vars <- c("ORIGEM","SITUACAO")
+vars <- i("IDADE", "NOTA_MAT", "REPROVACAO")
+dag  <- empty.graph(vars)
+
+########## Definicao da estrutura da rede
+
+
+adj <- matrix(
+        0L, 
+        ncol = 5, 
+        nrow = 90,
+        dimnames = list(vars, vars)
+       )
+adj["ORIGEM", "REPROVACAO"] = 1L
+adj["REPROVACAO", "SITUACAO"] = 1L
+adj["NOTA_MAT", "SITUACAO"] = 1L
+adj["IDADE", "SITUACAO"] = 1L
+print(adj)
+
+# Outra forma de se definir a rede
+
+dag <- model2network("[ORIGEM][NOTA_MAT][IDADE][REPROVACAO|ORIGEM][SITUACAO|REPROVACAO:NOTA_MAT:IDADE]")
+plot(dag)
+
+#Rede Bayesiana Ajustada
+bnAjustado <- bn.fit(dag, data=dados_formatados)
+
+#Tabela de Probabilidade Condicional - Abandono
+print(bnAjustado$SITUACAO)
+
+bn.fit.barchart(dag$dysp)
+
+#Inferência em Redes Bayesianas
+
+cpquery(bnAjustado, event = Abandono == "Sim", evidence = TRUE)
+
+#Analisando o "Abandono" a partir das notas em Matematica do ENEM realizado pelos alunos no vestibular + Origem + Idade.
+cpquery(bnAjustado, 
+        event = (Abandono=="Sim"), 
+        evidence = ( ORIGEM == "Particular" & NOTA_MAT>="700" & IDADE<="21") )
+	
+
+query <- cpquery(bnAjustado, event = Abandono == "Sim", evidence = TRUE)
+print(mean(rep(query, 1000)))
+
+### visualizacao situação
+dados_atualizado_situacao <- view(dados_atualizado_situacao$SITUACAO, dados_atualizado_situacao$NOTA_MAT)
+
+
+
+
+## Vamos remover o link entre os nós "Origem", "Reprovacao" 
+
+dag <- drop.arc(dag, "REPROVACAO", "ORIGEM_COLEGIO")
+#Plot da Rede
+plot(dag)
+
+
+
+###  Fim   ######
